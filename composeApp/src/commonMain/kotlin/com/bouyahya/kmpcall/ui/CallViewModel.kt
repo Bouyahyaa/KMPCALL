@@ -21,12 +21,24 @@ class CallViewModel(
     fun onEvent(event: CallEvent) {
         when (event) {
             is CallEvent.Connect -> connect(event)
+            is CallEvent.ToggleAudio -> toggleAudio(event)
+            is CallEvent.ToggleVideo -> toggleVideo(event)
         }
     }
 
     fun connect(event: CallEvent.Connect) =
         viewModelScope.launch {
             socketClient.connect(event.stream)
+        }
+
+    fun toggleAudio(event: CallEvent.ToggleAudio) =
+        viewModelScope.launch {
+            socketClient.toggleAudio(event.value)
+        }
+
+    fun toggleVideo(event: CallEvent.ToggleVideo) =
+        viewModelScope.launch {
+            socketClient.toggleVideo(event.value)
         }
 
     private fun collectConnections() =

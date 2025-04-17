@@ -1,11 +1,13 @@
 package com.bouyahya.kmpcall.core.network
 
 import com.bouyahya.kmpcall.core.network.webrtc.AnswerSdpData
+import com.bouyahya.kmpcall.core.network.webrtc.AudioToggleData
 import com.bouyahya.kmpcall.core.network.webrtc.IceCandidateData
 import com.bouyahya.kmpcall.core.network.webrtc.MessagePayload
 import com.bouyahya.kmpcall.core.network.webrtc.OfferSdpData
 import com.bouyahya.kmpcall.core.network.webrtc.RTCSessionDescription
 import com.bouyahya.kmpcall.core.network.webrtc.UserJoinedData
+import com.bouyahya.kmpcall.core.network.webrtc.VideoToggleData
 import com.bouyahya.kmpcall.ui.Connection
 import com.piasy.kmp.socketio.socketio.IO
 import com.piasy.kmp.socketio.socketio.Socket
@@ -43,11 +45,13 @@ import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
 class SocketClient {
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var socket: Socket? = null
+    private var localStream: MediaStream? = null
+
     private val callId: String = "b0d1ee04-caed-456d-9a61-398f1e0764d4"
     private val userId: String = Uuid.random().toString()
 
-    private var localStream: MediaStream? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private var connections = mutableListOf<Connection>()
     private val connectionsEvent = MutableSharedFlow<List<Connection>>()
@@ -75,6 +79,8 @@ class SocketClient {
 
     fun listenEvents(socket: Socket) {
         socket.on(Socket.EVENT_CONNECT) {
+            this.socket = socket
+
             socket.emit(
                 "CONNECT", JsonObject(
                     mapOf(
@@ -97,7 +103,7 @@ class SocketClient {
                     args.firstOrNull().toString()
                 )
 
-                handleMessage(payloadData, socket)
+                handleMessage(payloadData)
             }
 
             socket.on("new message solo") { args ->
@@ -105,15 +111,15 @@ class SocketClient {
                     args.firstOrNull().toString()
                 )
 
-                handleMessage(payloadData, socket)
+                handleMessage(payloadData)
             }
 
             // Join the call
-            join(socket)
+            join()
         }
     }
 
-    fun join(socket: Socket) =
+    fun join() =
         sendMessage(
             "user-joined",
             JsonObject(
@@ -131,22 +137,22 @@ class SocketClient {
             socket,
         )
 
-    fun handleMessage(payload: MessagePayload, socket: Socket) {
+    fun handleMessage(payload: MessagePayload) {
         if (payload.data["userID"]?.jsonPrimitive?.content == userId) return
         when (payload.type) {
             "user-joined" -> {
                 val userJoinedData = json.decodeFromString<UserJoinedData>(payload.data.toString())
-                userJoined(userJoinedData, socket)
+                userJoined(userJoinedData)
             }
 
             "connection-request" -> {
                 val userJoinedData = json.decodeFromString<UserJoinedData>(payload.data.toString())
-                receivedConnectionRequest(userJoinedData, socket)
+                receivedConnectionRequest(userJoinedData)
             }
 
             "offer-sdp" -> {
                 val offerSdpData = json.decodeFromString<OfferSdpData>(payload.data.toString())
-                receivedOfferSdp(offerSdpData, socket)
+                receivedOfferSdp(offerSdpData)
             }
 
             "answer-sdp" -> {
@@ -159,20 +165,27 @@ class SocketClient {
                 setIceCandidate(icaCandidateData)
             }
 
+            "audio-toggle" -> {
+                val audioToggleData = json.decodeFromString<AudioToggleData>(payload.data.toString())
+                listenAudioToggle(audioToggleData)
+            }
+
+            "video-toggle" -> {
+                val videoToggleData = json.decodeFromString<VideoToggleData>(payload.data.toString())
+                listenVideoToggle(videoToggleData)
+            }
+
 //            "user-left" -> handleUserLeft(payload.data)
-//            "video-toggle" -> handleVideoToggle(payload.data)
-//            "audio-toggle" -> handleAudioToggle(payload.data)
         }
     }
 
-    fun userJoined(data: UserJoinedData, socket: Socket) {
-        val connection = createConnection(data, socket)
-        sendConnectionRequest(connection.userId, socket)
+    fun userJoined(data: UserJoinedData) {
+        val connection = createConnection(data)
+        sendConnectionRequest(connection.userId)
     }
 
     fun sendConnectionRequest(
-        otherUserId: String,
-        socket: Socket
+        otherUserId: String
     ) = sendMessage(
         type = "connection-request",
         data = JsonObject(
@@ -192,16 +205,16 @@ class SocketClient {
         userId = otherUserId
     )
 
-    fun receivedConnectionRequest(data: UserJoinedData, socket: Socket) {
+    fun receivedConnectionRequest(data: UserJoinedData) {
         val previousConnectionIndex = connections
             .indexOfFirst { connection -> connection.userId == data.userID }
         if (previousConnectionIndex == -1) {
-            createConnection(data, socket)
-            sendOfferSdp(data.userID, socket)
+            createConnection(data)
+            sendOfferSdp(data.userID)
         }
     }
 
-    fun sendOfferSdp(otherUserId: String, socket: Socket) =
+    fun sendOfferSdp(otherUserId: String) =
         scope.launch {
             val connection = getConnection(otherUserId)
             val sdp = connection.peerConnection?.createOffer(
@@ -234,17 +247,15 @@ class SocketClient {
             }
         }
 
-    fun receivedOfferSdp(data: OfferSdpData, socket: Socket) =
+    fun receivedOfferSdp(data: OfferSdpData) =
         sendAnswerSdp(
             data.userID,
             data.sdp,
-            socket
         )
 
     fun sendAnswerSdp(
         otherUserId: String,
-        sdp: RTCSessionDescription,
-        socket: Socket
+        sdp: RTCSessionDescription
     ) = scope.launch {
         val connection = getConnection(otherUserId)
         connection.peerConnection?.setRemoteDescription(
@@ -309,7 +320,6 @@ class SocketClient {
     fun sendIceCandidate(
         otherUserId: String,
         iceCandidate: IceCandidate,
-        socket: Socket
     ) = sendMessage(
         type = "icecandidate",
         data = JsonObject(
@@ -330,10 +340,55 @@ class SocketClient {
         userId = otherUserId
     )
 
-    private fun createConnection(
-        userJoinedData: UserJoinedData,
-        socket: Socket
-    ): Connection {
+    fun toggleAudio(value: Boolean) =
+        sendMessage(
+            "audio-toggle",
+            data = JsonObject(
+                mapOf(
+                    "userID" to JsonPrimitive(userId),
+                    "audioEnabled" to JsonPrimitive(value)
+                )
+            ),
+            socket = socket,
+        )
+
+    fun listenAudioToggle(data: AudioToggleData) {
+        connections = connections.map {
+            if (it.userId == data.userID) {
+                it.copy(audioEnabled = data.audioEnabled)
+            } else {
+                it
+            }
+        }.toMutableList()
+
+        scope.launch { connectionsEvent.emit(connections.toList()) }
+    }
+
+    fun toggleVideo(value: Boolean) =
+        sendMessage(
+            type = "video-toggle",
+            data = JsonObject(
+                mapOf(
+                    "userID" to JsonPrimitive(userId),
+                    "videoEnabled" to JsonPrimitive(value)
+                )
+            ),
+            socket = socket
+        )
+
+    fun listenVideoToggle(data: VideoToggleData) {
+        connections = connections.map {
+            if (it.userId == data.userID) {
+                it.copy(videoEnabled = data.videoEnabled)
+            } else {
+                it
+            }
+        }.toMutableList()
+
+        scope.launch { connectionsEvent.emit(connections.toList()) }
+    }
+
+    private fun createConnection(userJoinedData: UserJoinedData): Connection {
         val configuration = RtcConfiguration(
             iceServers = listOf(
                 IceServer(
@@ -354,7 +409,7 @@ class SocketClient {
         // Handle ICE Candidates
         peerConnection.onIceCandidate
             .onEach { iceCandidate ->
-                sendIceCandidate(userJoinedData.userID, iceCandidate, socket)
+                sendIceCandidate(userJoinedData.userID, iceCandidate)
             }
             .launchIn(scope)
 
@@ -401,7 +456,6 @@ class SocketClient {
 
         connections.add(connection)
 
-
         scope.launch { connectionsEvent.emit(connections.toList()) }
 
         return connection
@@ -412,9 +466,9 @@ class SocketClient {
     fun sendMessage(
         type: String,
         data: JsonObject,
-        socket: Socket,
+        socket: Socket?,
         userId: String = "",
-    ) {
+    ) = socket?.let { s ->
         val requestMap = mutableMapOf<String, JsonElement>()
         requestMap["type"] = JsonPrimitive(type)
         requestMap["data"] = data
@@ -425,6 +479,6 @@ class SocketClient {
 
         val payload = JsonObject(requestMap)
 
-        socket.emit("MESSAGE", payload)
+        s.emit("MESSAGE", payload)
     }
 }
