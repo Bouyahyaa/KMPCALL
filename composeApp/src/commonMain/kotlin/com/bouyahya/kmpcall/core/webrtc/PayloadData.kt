@@ -1,7 +1,13 @@
-package com.bouyahya.kmpcall.core.network.webrtc
+package com.bouyahya.kmpcall.core.webrtc
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+
+@Serializable
+data class MessagePayload(
+    val type: String,
+    val data: JsonObject,
+)
 
 @Serializable
 data class Config(
@@ -66,16 +72,4 @@ data class VideoToggleData(
 data class AudioToggleData(
     val userID: String,
     val audioEnabled: Boolean,
-)
-
-@Serializable
-data class ConnectSocket(
-    val userID: String,
-    val audioEnabled: Boolean,
-)
-
-@Serializable
-data class MessagePayload(
-    val type: String,
-    val data: JsonObject,
 )

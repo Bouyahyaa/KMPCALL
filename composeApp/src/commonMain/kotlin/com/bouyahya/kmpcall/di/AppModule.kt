@@ -1,7 +1,7 @@
 package com.bouyahya.kmpcall.di
 
 import org.koin.core.module.dsl.viewModel
-import com.bouyahya.kmpcall.core.network.SocketClient
+import com.bouyahya.kmpcall.core.webrtc.SocketClient
 import com.bouyahya.kmpcall.core.network.createHttpClient
 import com.bouyahya.kmpcall.ui.CallViewModel
 import org.koin.core.context.startKoin

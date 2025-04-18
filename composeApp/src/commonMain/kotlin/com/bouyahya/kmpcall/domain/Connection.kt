@@ -1,4 +1,4 @@
-package com.bouyahya.kmpcall.ui
+package com.bouyahya.kmpcall.domain
 
 import com.shepeliev.webrtckmp.AudioStreamTrack
 import com.shepeliev.webrtckmp.PeerConnection
