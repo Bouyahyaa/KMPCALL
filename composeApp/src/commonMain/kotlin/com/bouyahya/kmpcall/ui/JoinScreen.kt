@@ -32,7 +32,7 @@ fun JoinScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Text(
-                text = "KMP WEBRTC Call App",
+                text = "KMP WEBRTC APP",
                 color = Color.White,
                 style = MaterialTheme.typography.headlineLarge
             )

@@ -41,7 +41,7 @@ class SocketClient {
     private var localStream: MediaStream? = null
 
     private val callId: String = "b0d1ee04-caed-456d-9a61-398f1e0764d4"
-    private val userId: String = Uuid.Companion.random().toString()
+    private var userId: String = ""
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -57,17 +57,22 @@ class SocketClient {
 
     val json = Json { ignoreUnknownKeys = true }
 
-    fun connect(stream: MediaStream) = scope.launch {
-        IO.socket(
-            uri = "http://192.168.3.62:4000",
-            opt = IO.Options(),
-        ) { socket ->
-            with(socket) { listenEvents(socket) }
-            socket.open()
-        }
+    fun connect(stream: MediaStream) =
+        scope.launch {
+            userId = Uuid.Companion.random().toString()
 
-        localStream = stream
-    }
+            IO.socket(
+                uri = "http://192.168.3.62:4000",
+                opt = IO.Options().apply {
+                    forceNew = true
+                },
+            ) { socket ->
+                with(socket) { listenEvents(socket) }
+                socket.open()
+            }
+
+            localStream = stream
+        }
 
     private fun listenEvents(socket: Socket) {
         socket.on(Socket.Companion.EVENT_CONNECT) {
@@ -409,14 +414,21 @@ class SocketClient {
             socket = socket
         )
 
-        socket?.emit("LEAVE_ROOM", JsonObject(mapOf("groupID" to JsonPrimitive(callId))))
+        socket?.emit(
+            "LEAVE_ROOM", JsonObject(
+                mapOf(
+                    "groupID" to JsonPrimitive(callId),
+                    "userID" to JsonPrimitive(userId),
+                )
+            )
+        )
 
         socket?.off("new message")
         socket?.off("new message solo")
 
         localStream = null
 
-        socket?.close()
+        connections.clear()
     }
 
     private fun createConnection(userJoinedData: UserJoinedData): Connection {
