@@ -62,7 +62,7 @@ class SocketClient {
             userId = Uuid.Companion.random().toString()
 
             IO.socket(
-                uri = "http://192.168.3.62:4000",
+                uri = "http://<<IP_ADDRESS>>:4000",
                 opt = IO.Options().apply {
                     forceNew = true
                 },
