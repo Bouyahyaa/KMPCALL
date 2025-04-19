@@ -435,9 +435,9 @@ class SocketClient {
         val configuration = RtcConfiguration(
             iceServers = listOf(
                 IceServer(
-                    urls = listOf("turn:turn.linkefoot.fr"),
-                    username = "admin",
-                    password = "1NJKj8TQntReoZ3",
+                    urls = listOf("stun:stun.l.google.com:19302"),
+                    username = "",
+                    password = "",
                 )
             )
         )
