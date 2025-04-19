@@ -62,7 +62,7 @@ class SocketClient {
             userId = Uuid.Companion.random().toString()
 
             IO.socket(
-                uri = "http://192.168.3.62:4000",
+                uri = "http://<<IP_ADDRESS>>:4000",
                 opt = IO.Options().apply {
                     forceNew = true
                 },
@@ -435,9 +435,9 @@ class SocketClient {
         val configuration = RtcConfiguration(
             iceServers = listOf(
                 IceServer(
-                    urls = listOf("turn:turn.linkefoot.fr"),
-                    username = "admin",
-                    password = "1NJKj8TQntReoZ3",
+                    urls = listOf("stun:stun.l.google.com:19302"),
+                    username = "",
+                    password = "",
                 )
             )
         )
